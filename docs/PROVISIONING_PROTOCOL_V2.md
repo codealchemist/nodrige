@@ -1,11 +1,13 @@
 # Provisioning Protocol v2 — Token + AES-GCM
 
-**Status:** specification, **not yet implemented in firmware**. See §12.
+**Status: implemented in firmware and building.** Not yet exercised against a
+real client — see §12.
 
-**Replaces:** protocomm Security2 (SRP6a) as described in
+**Replaces:** protocomm Security2 (SRP6a), described in
 [BLE_PROVISIONING_PROTOCOL.md](BLE_PROVISIONING_PROTOCOL.md) and
-[PROVISIONING_CLIENT_GUIDE.md](PROVISIONING_CLIENT_GUIDE.md). Those describe
-v1, which remains what the current firmware runs until §12 is done.
+[PROVISIONING_CLIENT_GUIDE.md](PROVISIONING_CLIENT_GUIDE.md). Both now
+describe a version the firmware no longer runs; this document is the live
+contract.
 
 **Audience:** both the firmware and the provisioner app. This document is the
 wire contract; neither side should need to read the other's source.
@@ -238,21 +240,57 @@ counted like any other.
 
 ## 8. QR payload (v2)
 
-```json
-{
-  "ver": "v2",
-  "name": "PROV_A1B2C3",
-  "mac": "a1b2c3d4e5f6",
-  "token": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
-}
+**Not JSON.** A single colon-delimited ASCII string:
+
+```
+P2:<mac-hex>:<token-b64url>
+```
+
+Concretely:
+
+```
+P2:a1b2c3d4e5f6:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
 ```
 
 | Field | Notes |
 | --- | --- |
-| `ver` | **`"v2"`**. A v1 app sees this and must refuse, rather than misreading it. |
-| `name` | BLE advertised name to match on. |
-| `mac` | 6 bytes, lowercase hex, no separators. **HKDF salt** — decode to raw bytes. |
-| `token` | 32 bytes, base64url, unpadded. |
+| `P2` | Literal prefix and version marker. Reject anything not starting `P2:`. |
+| `<mac-hex>` | 6 bytes, **lowercase** hex, no separators, always 12 chars. **HKDF salt** — decode to raw bytes. |
+| `<token-b64url>` | 32 bytes, base64url, unpadded, always 43 chars. |
+
+Total: **59 bytes**, fixed length.
+
+`:` is an unambiguous delimiter — base64url's alphabet is `[A-Za-z0-9-_]` and
+hex is `[0-9a-f]`, so neither field can contain one. Split on the first two
+colons.
+
+### Why not JSON
+
+This format exists for exactly one reason: **QR module size**. Payload length
+sets the QR version, which sets the module count, which decides whether a
+camera can resolve the code at all on a 172px-tall panel.
+
+| Payload | Bytes | QR version | Modules | Pixels per module @164px |
+| --- | --- | --- | --- | --- |
+| JSON (previous) | 108 | 7 | 45×45 | **2** — unscannable |
+| `P2:…` (this) | 59 | 4 | 33×33 | **4** |
+
+Two pixels per module is below what any scanner reliably reads, and a web app
+using `getUserMedia` — typically a 640×480 stream — has less to work with than
+a native camera app. 4px/module is the ceiling on this panel; 5 would require
+a 205px canvas.
+
+### Deriving the device name
+
+The BLE advertised name is **not** in the payload, because it is derivable and
+cost ~22 bytes of a budget measured in module size:
+
+```
+name = "PROV_" + uppercase(mac-hex[6:12])
+```
+
+So `a1b2c3d4e5f6` → `PROV_D4E5F6`. That is the last three MAC bytes, matching
+the advertisement (§3).
 
 The token is **single-use**: regenerated every time the device enters
 provisioning mode, never persisted, and invalid once the session ends. Never
@@ -262,10 +300,11 @@ cache it; never retry with a previous session's token.
 
 ## 9. Sequence
 
-1. App scans the QR. Reject unless `ver == "v2"`.
+1. App scans the QR. Reject unless it starts `P2:`. Split into `mac` and
+   `token`.
 2. App derives `k_c2d` / `k_d2c` (§4).
-3. App connects to the device matching `name`, negotiates MTU, subscribes to
-   TX.
+3. App connects to the device advertising the name derived from `mac` (§8),
+   negotiates MTU, subscribes to TX.
 4. App sends `HELLO`, counter 0. Device verifies the tag.
    - Tag invalid → device drops the frame silently and keeps waiting. It does
      **not** reply, because a reply would confirm the device name to an
@@ -294,10 +333,13 @@ implementation before touching hardware.
 **Inputs** (fixed for the vector — not a real session):
 
 ```
-token bytes  = 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
-token (b64url, as it appears in the QR)
-             = AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
-mac (salt)   = a1b2c3d4e5f6
+QR payload   = P2:a1b2c3d4e5f6:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
+
+  parsed ->
+token (b64url) = AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
+token bytes    = 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+mac (salt)     = a1b2c3d4e5f6
+derived name   = PROV_D4E5F6
 ```
 
 **Derived keys:**
@@ -349,24 +391,44 @@ protection against an attacker who never saw the QR.
 
 ---
 
-## 12. Firmware work required
+## 12. Implementation status
 
-Not yet implemented. To land v2:
+**Done** — `poc/src/provisioning.cpp` + `poc/src/prov_crypto.cpp`. Builds
+clean; flash usage went *down* (64.2% → 63.5%), since protobuf and protocomm
+outweigh the replacement.
 
-1. Replace `network_prov_mgr_*` in `poc/src/provisioning.cpp` with a NimBLE
-   GATT server exposing §3's service.
-2. Token generation (`esp_fill_random`, 32 bytes) + base64url; extend the QR
-   payload to §8.
-3. HKDF-SHA256 and AES-256-GCM via mbedTLS — both already linked; no new
-   dependency.
-4. Frame encode/decode (§5) with the counter checks, and fragment
-   reassembly (§6).
-5. Apply Wi-Fi credentials directly via `esp_wifi_set_config()` — v1 got this
-   from the stock `prov-config` endpoint, which no longer exists here.
-6. Delete the `strip_dup_provisioning.py` build hook: dropping
-   `network_provisioning` removes the duplicate-protobuf-symbol clash it
-   exists to work around.
+| Item | Where |
+| --- | --- |
+| GATT server, §3 service | `provisioning.cpp`, Arduino BLE over NimBLE |
+| Token + base64url + v2 QR | `provisioningRun()`, `prov_crypto::base64UrlEncode` |
+| HKDF-SHA256, AES-256-GCM | `prov_crypto.cpp` via mbedTLS — no new dependency |
+| Framing, counters, fragments | `sendFrame` / `handleFrame` / `handleFragment` |
+| Wi-Fi applied by us | `provisioningRun()` loop via `netConnectWifi()` |
+| `strip_dup_provisioning.py` | deleted — the symbol clash went with protocomm |
 
-Item 5 is the one most easily missed — removing protocomm removes the Wi-Fi
-provisioning endpoint along with it, and that functionality has to be
-rebuilt, not just re-wrapped.
+### On-device self-test
+
+`provisioningSelfTest()` runs at boot and checks this firmware's crypto
+against §10's vectors, printing one line per check:
+
+```
+[SelfTest] base64url      PASS
+[SelfTest] hkdf k_c2d     PASS
+[SelfTest] hkdf k_d2c     PASS
+[SelfTest] gcm seal       PASS
+[SelfTest] gcm open       PASS
+[SelfTest] gcm reject     PASS
+[SelfTest] === crypto OK ===
+```
+
+This makes "the app can't talk to the device" an answerable question: if
+these pass, the firmware agrees with this spec byte for byte and the problem
+is on the client side or in the transport. `gcm reject` deliberately
+tamper-checks a tag — if *that* one ever passes as accepted, authentication
+isn't running and every other line is meaningless.
+
+### Not yet verified
+
+- Any real client session. The whole flow past `HELLO` is untested.
+- Concurrent BLE + Wi-Fi + MQTT on the C6.
+- Fragment reassembly against a peer that negotiates a small MTU.

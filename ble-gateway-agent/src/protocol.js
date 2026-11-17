@@ -88,11 +88,10 @@ export function parseQrPayload(raw) {
   };
 }
 
-// The compact format has no `name` field, so it's derived from the mac
-// following §8's own example ("PROV_A1B2C3" for mac "a1b2c3d4e5f6") — the
-// BLE advertised name for "PROV_<first 3 mac bytes, uppercased>". UNVERIFIED
-// against real firmware/BLE scan results — confirm this matches the
-// device's actual advertised name before relying on it to connect.
+// The compact format has no `name` field, so it's derived from the mac per
+// PROVISIONING_PROTOCOL_V2.md §8: "PROV_" + the LAST 3 mac bytes, uppercased
+// (mac "a1b2c3d4e5f6" -> "PROV_D4E5F6"), matching the advertisement (§3).
+// Verified against real firmware: mac acebe639f3f4 advertises PROV_39F3F4.
 function parseCompactQrPayload(raw) {
   const parts = raw.split(":");
   if (parts.length !== 3 || parts[0] !== "P2") {
@@ -103,7 +102,7 @@ function parseCompactQrPayload(raw) {
     throw new Error(`QR payload has malformed mac "${mac}" — expected 12 lowercase hex chars`);
   }
   return {
-    name: `PROV_${mac.slice(0, 6).toUpperCase()}`,
+    name: `PROV_${mac.slice(6, 12).toUpperCase()}`,
     macBytes: hexToBytes(mac),
     tokenBytes: base64urlToBytes(token),
   };
