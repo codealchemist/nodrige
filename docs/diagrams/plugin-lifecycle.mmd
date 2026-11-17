@@ -1,0 +1,12 @@
+%% Extension lifecycle state machine — see docs/07-extension-engine.md §7.2
+stateDiagram-v2
+    [*] --> discovered
+    discovered --> validated: manifest schema-checked
+    validated --> rejected: permission check failed
+    validated --> installed: dependencies resolved, migrations applied
+    installed --> enabled: hooks registered, routes mounted
+    enabled --> disabled: admin disable / circuit breaker trip
+    disabled --> enabled: admin re-enable
+    disabled --> uninstalled: admin uninstall
+    rejected --> [*]
+    uninstalled --> [*]

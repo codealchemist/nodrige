@@ -1,0 +1,22 @@
+{
+  "name": "core-server-poc",
+  "version": "0.1.0",
+  "description": "Walking-skeleton POC for the modular, hardware-agnostic Core Server (see docs/00-poc-implementation-guide.md)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node scripts/dev-all.js",
+    "dev": "node scripts/dev-all.js --watch",
+    "server": "node src/index.js",
+    "server:watch": "node --watch src/index.js",
+    "broker": "node scripts/dev-broker.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mqtt": "^5.10.1"
+  },
+  "devDependencies": {
+    "aedes": "^1.1.1"
+  }
+}

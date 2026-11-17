@@ -1,0 +1,44 @@
+%% System Topology — see docs/02-system-topology.md §2.2
+flowchart LR
+    subgraph Clients["Hardware & Web Clients (separate repos)"]
+        ESP["ESP32-C6 Firmware\n(BLE + MQTT)"]
+        WebProv["Web Bluetooth\nProvisioning App"]
+        OtherHW["Other Client Types\n(future hardware)"]
+    end
+
+    subgraph Broker["Message Broker"]
+        MQTT["MQTT Broker\n(e.g. Mosquitto / EMQX)"]
+    end
+
+    subgraph Core["Node.js Core Server"]
+        AuthLayer["1. Auth & Identity"]
+        ProvOrch["2. Provisioning Orchestrator"]
+        ConnBroker["3. Connectivity & Command Broker"]
+        StateEngine["4. Contextual State Engine"]
+        ExtEngine["5. Extension Engine"]
+    end
+
+    subgraph Extensions["Extension Layer (hot-pluggable)"]
+        GHome["Google Home Extension"]
+        Analytics["Analytics Extension"]
+        Custom["... third-party extensions"]
+    end
+
+    subgraph Cloud["External Cloud Platforms"]
+        HomeGraph["Google Home Graph API"]
+        OtherCloud["Other platform APIs"]
+    end
+
+    ESP -- "BLE (setup)" --> WebProv
+    WebProv -- "HTTPS" --> ProvOrch
+    ESP -- "MQTT publish/subscribe" --> MQTT
+    OtherHW -- "MQTT or WS" --> MQTT
+    MQTT <--> ConnBroker
+    ProvOrch --> AuthLayer
+    ConnBroker --> StateEngine
+    StateEngine --> ExtEngine
+    ExtEngine --> GHome
+    ExtEngine --> Analytics
+    ExtEngine --> Custom
+    GHome -- "reportStateAndNotification" --> HomeGraph
+    Custom -.-> OtherCloud

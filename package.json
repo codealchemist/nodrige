@@ -1,0 +1,10 @@
+{
+  "name": "root",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dev orchestration for the Core server POC and web provisioner.",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-all.mjs"
+  }
+}

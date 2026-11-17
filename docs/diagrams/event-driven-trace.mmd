@@ -1,0 +1,28 @@
+%% Event-Driven Data Flow worked trace — see docs/09-event-driven-data-flow.md §9.2
+sequenceDiagram
+    autonumber
+    participant HW as Physical Client (dev-A)
+    participant MQTT as MQTT Broker
+    participant Adapter as MQTT Adapter (ch.5)
+    participant Norm as Payload Normalizer (ch.5)
+    participant Engine as State Engine (ch.6)
+    participant Bus as Extension Event Bus (ch.7)
+    participant GHExt as Google Home Extension (ch.8)
+    participant HomeGraph as Google Home Graph API
+
+    HW->>HW: Rotary sensor reads new position (42)
+    HW->>MQTT: PUBLISH devices/dev-A/messages<br/>{componentId:"knob-1", eventType:"adjustment", value:42}
+    MQTT->>Adapter: Deliver message (adapter is a subscribed MQTT client)
+    Adapter->>Norm: raw payload + topic + clientId
+    Norm->>Norm: Decode into canonical CoreEvent
+    Norm->>Engine: CoreEvent{clientId:"dev-A", componentId:"knob-1", eventType:"adjustment", value:42}
+    Engine->>Engine: Load previous StateEntry (value:37) from store
+    Engine->>Engine: Diff: 42 != 37 -> changed
+    Engine->>Engine: Upsert StateEntry{value:42, updatedAt:now}
+    Engine->>Bus: emit "state.changed" {clientId:"dev-A", componentId:"knob-1", value:42, previousValue:37}
+    Bus->>GHExt: invoke onStateChanged() (extension subscribed to this topic)
+    GHExt->>GHExt: Lookup deviceTraitStore: dev-A/knob-1 -> Google device "kitchen-dimmer", trait brightness
+    GHExt->>GHExt: Transform value 42 -> {brightness: 42}
+    GHExt->>HomeGraph: POST reportStateAndNotification (async, non-blocking)
+    HomeGraph-->>GHExt: 200 OK
+    GHExt->>GHExt: log success (fire-and-forget, no upstream wait)

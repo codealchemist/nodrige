@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Local env files — keep .env.example tracked, never the real .env
+.env
+.env.local
+
+# Self-signed dev TLS certs: auto-generated per machine (scripts/devCert.*)
+# and embed this host's LAN IP in the SAN list — never commit, just regenerate.
+certs/
+
+# Claude Code local session settings (machine/session-specific)
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs
+*.log

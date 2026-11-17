@@ -1,0 +1,16 @@
+{
+  "name": "ble-gateway-agent",
+  "version": "0.2.0",
+  "description": "Reference BLE Gateway Agent — drives docs/PROVISIONING_PROTOCOL_V2.md against a real device on the Core's behalf. Requires a real BLE adapter (Linux/BlueZ typical); will not run in a headless/no-BLE environment.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node test/protocol.test.mjs"
+  },
+  "dependencies": {
+    "@abandonware/noble": "^1.9.2-23",
+    "dotenv": "^16.4.5",
+    "mqtt": "^5.10.1"
+  }
+}

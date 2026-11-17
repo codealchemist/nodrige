@@ -1,0 +1,10 @@
+{
+  "name": "web-provisioner",
+  "version": "0.1.0",
+  "description": "Reference provisioning client for Provisioning Protocol v2 (docs/PROVISIONING_PROTOCOL_V2.md) — QR scan + Web Bluetooth, zero runtime dependencies.",
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "test": "node test/protocol.test.mjs"
+  }
+}
