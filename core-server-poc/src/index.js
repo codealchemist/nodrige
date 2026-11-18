@@ -10,6 +10,7 @@ import { stateEngine } from './state/stateEngine.js'
 import { loadExtension } from './extensions/loader.js'
 import echoExtension from './extensions/echo/index.js'
 import menuTasksExtension from './extensions/menu-tasks/index.js'
+import weatherExtension from './extensions/weather/index.js'
 import { createProvisioningOrchestrator } from './provisioning/orchestrator.js'
 import { bleWifiStrategy } from './provisioning/strategies/bleWifi.js'
 import { bleGatewayStrategy } from './provisioning/strategies/bleGateway.js'
@@ -58,6 +59,7 @@ const extensionCtx = {
 loadExtension(echoExtension, extensionCtx)
 // Demo backend for the device menu's tasks (esp32-c6-control ARCHITECTURE.md §6.3).
 loadExtension(menuTasksExtension, extensionCtx)
+loadExtension(weatherExtension, extensionCtx)
 
 // --- Device Setup & Provisioning Orchestrator (ch.4) ---
 // ctx mirrors what extensions get (ch.7 §7.4) — self-driving strategies like

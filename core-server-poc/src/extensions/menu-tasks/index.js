@@ -100,6 +100,8 @@ export default {
   async onStateChanged(event, ctx) {
     if (event.eventType !== "task") return;
     const { taskId, expectsResult, payload = {} } = event.metadata ?? {};
+    // Weather tasks belong to the weather extension.
+    if (String(taskId).startsWith("weather")) return;
     const requestId = event.value;
 
     // A panel opened a page with scene tiles: tell it which are active.

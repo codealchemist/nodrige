@@ -63,6 +63,15 @@ async function findUid() {
   return uid;
 }
 
+// The first home's location and name, as set in the Smart Life app
+// ({ lat, lon, name }), for features that need "where is home" (weather).
+export async function tuyaHomeLocation() {
+  if (!tuyaConfigured()) return null;
+  const homes = (await call("GET", `/v1.0/users/${await findUid()}/homes`)) ?? [];
+  const h = homes.find((x) => Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lon)));
+  return h ? { lat: Number(h.lat), lon: Number(h.lon), name: h.name } : null;
+}
+
 async function homeIds() {
   if (process.env.TUYA_HOME_ID) return [process.env.TUYA_HOME_ID];
   const homes = await call("GET", `/v1.0/users/${await findUid()}/homes`);
