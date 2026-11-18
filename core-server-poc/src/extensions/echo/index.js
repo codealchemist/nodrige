@@ -15,6 +15,9 @@ export default {
   },
 
   async onStateChanged(event, ctx) {
+    // Menu task invocations get real replies from the menu-tasks extension;
+    // echoing their requestId back would only be noise on the device.
+    if (event.eventType === "task") return;
     await ctx.commands.dispatch({
       clientId: event.clientId,
       componentId: event.componentId,

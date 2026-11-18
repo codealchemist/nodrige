@@ -3,15 +3,16 @@ import mqtt from "mqtt";
 // Topic scheme per docs/BLE_PROVISIONING_PROTOCOL.md §5 — this is what
 // provisioning (src/provisioning/strategies/bleWifi.js) actually hands the
 // device, so the broker must speak the same topics or a provisioned device
-// has nowhere for its messages to land. Only `messages` (inbound) and `cmd`
-// (outbound) are wired up here; `cmd/result`, `config`, and `status` are
-// part of the wire contract but not yet consumed by this POC.
-export function createMqttAdapter({ url, onInbound, logger = console }) {
+// has nowhere for its messages to land. Wired up: `messages` (inbound
+// telemetry), `cmd` (outbound commands), `config` (outbound, retained config
+// pushes) and `cmd/result` (inbound results, e.g. config apply outcomes).
+// `status` is part of the wire contract but not yet consumed by this POC.
+export function createMqttAdapter({ url, onInbound, onResult = () => {}, logger = console }) {
   const client = mqtt.connect(url, { reconnectPeriod: 2000 });
 
   client.on("connect", () => {
     logger.log(`[mqtt] connected to ${url}`);
-    client.subscribe("devices/+/messages", (err) => {
+    client.subscribe(["devices/+/messages", "devices/+/cmd/result"], (err) => {
       if (err) logger.error("[mqtt] subscribe failed", err);
     });
   });
@@ -20,8 +21,10 @@ export function createMqttAdapter({ url, onInbound, logger = console }) {
   client.on("error", (err) => logger.error("[mqtt] error", err.message));
 
   client.on("message", (topic, payload) => {
-    const clientId = topic.split("/")[1];
-    onInbound({ clientId, topic, payload, receivedAt: new Date().toISOString() });
+    const [, clientId, kind, sub] = topic.split("/");
+    const msg = { clientId, topic, payload, receivedAt: new Date().toISOString() };
+    if (kind === "messages") onInbound(msg);
+    else if (kind === "cmd" && sub === "result") onResult(msg);
   });
 
   return {
@@ -32,6 +35,10 @@ export function createMqttAdapter({ url, onInbound, logger = console }) {
           err ? reject(err) : resolve()
         );
       }),
+    // Retained + QoS 1 per docs (esp32-c6-control ARCHITECTURE.md §5.3): a
+    // device that is offline gets the latest config as soon as it subscribes.
+    publishConfig: (clientId, payload) =>
+      client.publishAsync(`devices/${clientId}/config`, payload, { qos: 1, retain: true }),
     stop: () => client.endAsync(),
   };
 }

@@ -9,10 +9,12 @@ import { wireBroker } from './connectivity/broker.js'
 import { stateEngine } from './state/stateEngine.js'
 import { loadExtension } from './extensions/loader.js'
 import echoExtension from './extensions/echo/index.js'
+import menuTasksExtension from './extensions/menu-tasks/index.js'
 import { createProvisioningOrchestrator } from './provisioning/orchestrator.js'
 import { bleWifiStrategy } from './provisioning/strategies/bleWifi.js'
 import { bleGatewayStrategy } from './provisioning/strategies/bleGateway.js'
 import { buildProvisioningRouter } from './provisioning/routes.js'
+import { buildDeviceConfigRouter } from './devices/configRoutes.js'
 
 const app = express()
 app.use(express.json())
@@ -36,20 +38,26 @@ app.use(requireAuth)
 
 // --- Connectivity & Command Broker (ch.5) ---
 let broker
+let deviceConfig
 const mqttAdapter = createMqttAdapter({
   url: process.env.MQTT_URL,
-  onInbound: msg => broker.onDeviceMessage(msg)
+  onInbound: msg => broker.onDeviceMessage(msg),
+  onResult: msg => deviceConfig.onResult(msg)
 })
 broker = wireBroker(mqttAdapter)
+deviceConfig = buildDeviceConfigRouter(mqttAdapter)
 
 // --- Dynamic Extension Engine (ch.7) ---
 // Echo is a permanent diagnostic extension, not a POC-only stand-in — it
 // stays installed alongside any future extension (e.g. Google Home, ch.8).
-loadExtension(echoExtension, {
+const extensionCtx = {
   state: stateEngine,
   commands: { dispatch: broker.dispatchCommand },
   logger: console
-})
+}
+loadExtension(echoExtension, extensionCtx)
+// Demo backend for the device menu's tasks (esp32-c6-control ARCHITECTURE.md §6.3).
+loadExtension(menuTasksExtension, extensionCtx)
 
 // --- Device Setup & Provisioning Orchestrator (ch.4) ---
 // ctx mirrors what extensions get (ch.7 §7.4) — self-driving strategies like
@@ -66,6 +74,9 @@ const orchestrator = createProvisioningOrchestrator(
   }
 )
 app.use('/provisioning', buildProvisioningRouter(orchestrator))
+
+// --- Device config push (esp32-c6-control docs/ARCHITECTURE.md §5.3) ---
+app.use('/devices', deviceConfig.router)
 
 // --- Debug-only state inspection (POC only — remove post-POC) ---
 app.get('/debug/state/:clientId', (req, res) => {
