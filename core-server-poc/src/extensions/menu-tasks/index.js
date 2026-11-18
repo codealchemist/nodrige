@@ -5,6 +5,8 @@
 // CoreEvent:
 //   { componentId: <menu node id>, eventType: "task", value: <requestId>,
 //     metadata: { taskId, expectsResult, payload: { taskId, ...params, requestId } } }
+// Switch nodes use the same shape; their payload adds `state: "on" | "off"`
+// plus the config's per-state object (e.g. a `tuyaScene` for each state).
 // `value` is the requestId so every invocation is a State Engine *change*
 // (a repeated "Lights On" would otherwise be swallowed as a heartbeat).
 //
@@ -24,6 +26,8 @@ const handlers = {
     level: p.level,
   }),
   "lights-on": (p) => ({ status: "ok", message: `Lights ${p.state ?? "on"}` }),
+  // `switch` nodes send their new state as payload.state ("on" | "off").
+  lights: (p) => ({ status: "ok", message: `Lights ${p.state}`, state: p.state }),
   "scene-movie": (p) => ({ status: "ok", message: `Scene "${p.name}" started` }),
 };
 

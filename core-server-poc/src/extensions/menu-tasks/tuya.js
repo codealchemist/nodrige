@@ -101,7 +101,7 @@ export async function runTuyaScene(name, logger = console) {
     }
     await call("POST", `/v1.0/homes/${scene.homeId}/scenes/${scene.sceneId}/trigger`);
     logger.log(`[tuya] ran scene "${scene.name}" (${scene.sceneId})`);
-    return { status: "ok", message: `${scene.name} on` };
+    return { status: "ok", message: `Ran "${scene.name}"` };
   } catch (err) {
     logger.log(`[tuya] scene "${name}" failed: ${err.message}`);
     return { status: "error", message: "Tuya error, see Core log" };
