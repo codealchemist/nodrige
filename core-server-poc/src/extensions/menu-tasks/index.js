@@ -17,7 +17,22 @@
 //
 // POC: the "backend" here is a small demo table; a real deployment maps
 // taskIds to actual integrations (here: Tuya scenes, ./tuya.js).
-import { runTuyaScene, tuyaConfigured } from "./tuya.js";
+import { activeScenes, runTuyaScene, tuyaConfigured } from "./tuya.js";
+
+// Tells a panel which Tuya scenes are active right now, so it can highlight
+// those scene tiles (it asks when a page with scene tiles opens):  { action: "scene_state", active: ["night mode", ...] }
+// (lowercase scene names, matched against each tile's tuyaScene).
+async function sendSceneState(ctx, clientIds, active) {
+  for (const clientId of clientIds) {
+    await ctx.commands.dispatch({
+      clientId,
+      componentId: "scene-state",
+      action: "scene_state",
+      value: active.join(","),
+      active,
+    });
+  }
+}
 
 const handlers = {
   "player-volume": (p) => ({
@@ -51,6 +66,13 @@ export default {
     if (event.eventType !== "task") return;
     const { taskId, expectsResult, payload = {} } = event.metadata ?? {};
     const requestId = event.value;
+
+    // A panel opened a page with scene tiles: tell it which are active.
+    if (taskId === "scene-state") {
+      await sendSceneState(ctx, [event.clientId], await activeScenes(ctx.logger));
+      return;
+    }
+
     ctx.logger.log(
       `[menu-tasks] ${event.clientId} ran "${taskId}" (${event.componentId}) ` +
         `${JSON.stringify(payload)}${expectsResult ? " — replying" : ""}`
