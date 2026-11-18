@@ -21,7 +21,7 @@
 import fs from "node:fs";
 
 import { getComputerVolume, setComputerVolume } from "./computerVolume.js";
-import { activeScenes, runTuyaScene, tuyaConfigured } from "./tuya.js";
+import { activeScenes, runTuyaScene, switchStateFromScene, tuyaConfigured } from "./tuya.js";
 
 // Tells a panel which Tuya scenes are active right now, so it can highlight
 // those scene tiles (it asks when a page with scene tiles opens):
@@ -50,6 +50,12 @@ const CORE_VERSION = (() => {
 
 // Handlers by taskId; each returns a task result ({ status, message, ... }).
 const handlers = {
+  // A panel switch's current state (on boot / screen wake), read from the
+  // lights its "on" scene acts on: { state: "on" | "off" }.
+  "switch-state": async (p, ctx) =>
+    p.onScene
+      ? switchStateFromScene(p.onScene, ctx?.logger)
+      : { status: "error", message: "switch-state needs onScene" },
   // The panel's device details page asks who it is talking to.
   "core-info": async () => ({
     status: "ok",
@@ -112,7 +118,7 @@ export default {
     const result = payload.tuyaScene
       ? await runTuyaScene(payload.tuyaScene, ctx.logger)
       : handler
-        ? await handler(payload)
+        ? await handler(payload, ctx)
         : { status: "error", message: `No handler for "${taskId}"` };
     if (!expectsResult) {
       if (result.status !== "ok") ctx.logger.log(`[menu-tasks] "${taskId}" failed: ${result.message}`);

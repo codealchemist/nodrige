@@ -74,12 +74,71 @@ async function listScenes() {
   const scenes = [];
   for (const homeId of await homeIds()) {
     for (const s of (await call("GET", `/v1.0/homes/${homeId}/scenes`)) ?? []) {
-      const deviceIds = [...new Set((s.actions ?? []).map((a) => a.entity_id).filter(Boolean))];
-      scenes.push({ homeId, sceneId: s.scene_id, name: s.name, deviceIds });
+      const actions = s.actions ?? [];
+      // Room-wide light actions ("lightBase") name a room, not a device.
+      const roomIds = [...new Set(actions.filter((a) => a.action_executor === "lightBase").map((a) => a.entity_id))];
+      const deviceIds = [
+        ...new Set(actions.filter((a) => a.action_executor !== "lightBase").map((a) => a.entity_id).filter(Boolean)),
+      ];
+      scenes.push({ homeId, sceneId: s.scene_id, name: s.name, deviceIds, roomIds });
     }
   }
   sceneCache = { at: Date.now(), scenes };
   return scenes;
+}
+
+// Lights in a room, for scenes that switch a whole room ("lightBase").
+// Cached: rooms rarely change.
+const ROOM_CACHE_MS = 10 * 60_000;
+const LIGHT_CATEGORIES = new Set(["dj", "dd", "fwd", "xdd", "dc", "fsd", "tyndj"]);
+const roomCache = new Map(); // `${homeId}/${roomId}` -> { at, ids }
+
+async function roomLights(homeId, roomId) {
+  const key = `${homeId}/${roomId}`;
+  const hit = roomCache.get(key);
+  if (hit && Date.now() - hit.at < ROOM_CACHE_MS) return hit.ids;
+  const devices = (await call("GET", `/v1.0/homes/${homeId}/rooms/${roomId}/devices`)) ?? [];
+  const ids = devices.filter((d) => LIGHT_CATEGORIES.has(d.category)).map((d) => d.id);
+  roomCache.set(key, { at: Date.now(), ids });
+  return ids;
+}
+
+// Every light a scene acts on: its device actions plus the lights of any
+// room it switches as a whole.
+async function sceneLights(scene) {
+  const ids = new Set(scene.deviceIds);
+  for (const room of scene.roomIds ?? []) for (const id of await roomLights(scene.homeId, room)) ids.add(id);
+  return [...ids];
+}
+
+async function findScene(name) {
+  const wanted = String(name).trim().toLowerCase();
+  let scene = (await listScenes()).find((s) => s.name.trim().toLowerCase() === wanted);
+  if (!scene) {
+    sceneCache.at = 0;  // maybe just created in the app
+    scene = (await listScenes()).find((s) => s.name.trim().toLowerCase() === wanted);
+  }
+  return scene;
+}
+
+// For a two-state panel switch whose "on" runs `onScene`: is it on right
+// now? On when any light that scene acts on is on. Task result shape, with
+// `state: "on" | "off"`; never throws.
+export async function switchStateFromScene(onScene, logger = console) {
+  if (!tuyaConfigured()) return { status: "error", message: "Tuya not set up (see .env)" };
+  try {
+    const scene = await findScene(onScene);
+    if (!scene) return { status: "error", message: `No Tuya scene "${onScene}"` };
+    const ids = await sceneLights(scene);
+    const states = await readStates(ids, logger);
+    const read = Object.values(states);
+    const on = read.filter((st) => isOn(st) && ("switch_led" in st || "switch_1" in st || "switch" in st)).length;
+    logger.log(`[tuya] "${scene.name}" lights: ${on} of ${read.length} on`);
+    return { status: "ok", state: on > 0 ? "on" : "off", message: `${on} of ${read.length} lights on` };
+  } catch (err) {
+    logger.log(`[tuya] switch state for "${onScene}" failed: ${err.message}`);
+    return { status: "error", message: "Tuya error, see Core log" };
+  }
 }
 
 // Runs the named scene. Resolves to a task result ({status, message}) —
@@ -223,11 +282,11 @@ function deviceMatches(want, have) {
 function scheduleLearn(scene, logger) {
   if (pendingLearn) clearTimeout(pendingLearn);
   pendingLearn = null;
-  if (!scene.deviceIds.length) return;
+  if (!scene.deviceIds.length && !scene.roomIds?.length) return;
   pendingLearn = setTimeout(async () => {
     pendingLearn = null;
     try {
-      const states = await readStates(scene.deviceIds, logger);
+      const states = await readStates(await sceneLights(scene), logger);
       fingerprints[scene.name.trim().toLowerCase()] = {
         name: scene.name,
         learnedAt: new Date().toISOString(),
