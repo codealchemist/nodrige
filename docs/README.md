@@ -34,6 +34,7 @@ Start with **[0 — POC Implementation Guide](./00-poc-implementation-guide.md)*
 | 9 | [Event-Driven Data Flow — Worked Trace](./09-event-driven-data-flow.md) | End-to-end trace of a physical event to Home Graph |
 | 10 | [Concurrency & Zero-Lag Strategy](./10-concurrency-strategy.md) | Event loop discipline, isolation, backpressure |
 | 11 | [Glossary & Architecture Decision Records](./11-glossary-and-adrs.md) | Terminology, key decisions and their rationale |
+| 12 | [Panel Modules & Config Builder](./12-panel-modules.md) | Proposed: reusable panel modules, configs that place them, compile to the panel format |
 
 ## Reading Paths
 
