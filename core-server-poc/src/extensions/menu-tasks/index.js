@@ -14,7 +14,9 @@
 //     result: { status: "ok" | "error", message, ... } }
 //
 // POC: the "backend" here is a small demo table; a real deployment maps
-// taskIds to actual integrations (e.g. the Google Home extension, ch.8).
+// taskIds to actual integrations (here: Tuya scenes, ./tuya.js).
+import { runTuyaScene, tuyaConfigured } from "./tuya.js";
+
 const handlers = {
   "player-volume": (p) => ({
     status: "ok",
@@ -36,6 +38,9 @@ export default {
 
   async onEnable(ctx) {
     ctx.logger.log(`[menu-tasks] enabled — demo handlers: ${Object.keys(handlers).join(", ")}`);
+    ctx.logger.log(
+      `[menu-tasks] tuyaScene tasks: ${tuyaConfigured() ? "Tuya cloud configured" : "Tuya NOT configured (TUYA_ACCESS_ID/SECRET)"}`
+    );
   },
 
   async onStateChanged(event, ctx) {
@@ -49,9 +54,12 @@ export default {
     if (!expectsResult) return;
 
     const handler = handlers[taskId];
-    const result = handler
-      ? handler(payload)
-      : { status: "error", message: `No handler for "${taskId}"` };
+    // `tuyaScene` tasks (the panel's Night / Day) run a Smart Life scene.
+    const result = payload.tuyaScene
+      ? await runTuyaScene(payload.tuyaScene, ctx.logger)
+      : handler
+        ? handler(payload)
+        : { status: "error", message: `No handler for "${taskId}"` };
 
     await ctx.commands.dispatch({
       clientId: event.clientId,
