@@ -1,1 +1,0 @@
-{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/components/bits.tsx","./src/lib/api.ts","./src/lib/live.tsx","./src/pages/configedit.tsx","./src/pages/configs.tsx","./src/pages/device.tsx","./src/pages/devices.tsx","./vite.config.ts"],"version":"5.9.3"}
