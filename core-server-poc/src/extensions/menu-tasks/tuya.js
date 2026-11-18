@@ -63,6 +63,12 @@ async function findUid() {
   return uid;
 }
 
+// Scene names in the linked home(s), for the console's config builder.
+export async function tuyaSceneNames() {
+  if (!tuyaConfigured()) return [];
+  return [...new Set((await listScenes()).map((s) => s.name))].sort();
+}
+
 // The first home's location and name, as set in the Smart Life app
 // ({ lat, lon, name }), for features that need "where is home" (weather).
 export async function tuyaHomeLocation() {

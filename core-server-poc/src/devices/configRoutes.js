@@ -15,7 +15,7 @@ import { Router } from "express";
 //                                 device reboots and the retained redelivery
 //                                 reports "unchanged", which would otherwise
 //                                 hide the "applied" that matters.
-export function buildDeviceConfigRouter(adapter, logger = console) {
+export function buildDeviceConfigRouter(adapter, logger = console, onConfigResult = () => {}) {
   const router = Router();
   const pushes = new Map(); // deviceId -> { config, pushedAt, results: [] }
   const MAX_RESULTS = 10;
@@ -67,6 +67,7 @@ export function buildDeviceConfigRouter(adapter, logger = console) {
       return;
     }
     if (body.type !== "config") return; // other result kinds: not ours
+    onConfigResult(msg.clientId, body);
     const entry = pushes.get(msg.clientId) ?? { config: null, pushedAt: null, results: [] };
     const results = [{ ...body, receivedAt: msg.receivedAt }, ...entry.results].slice(0, MAX_RESULTS);
     pushes.set(msg.clientId, { ...entry, results });
@@ -74,5 +75,12 @@ export function buildDeviceConfigRouter(adapter, logger = console) {
     logger.log(`[config] ${msg.clientId} reports configVersion ${body.configVersion}: ${body.status}${errors}`);
   }
 
-  return { router, onResult };
+  // Same path as POST /devices/:id/config, for the console's "send".
+  async function push(deviceId, config) {
+    await adapter.publishConfig(deviceId, JSON.stringify(config));
+    pushes.set(deviceId, { config, pushedAt: new Date().toISOString(), results: pushes.get(deviceId)?.results ?? [] });
+    logger.log(`[config] pushed configVersion ${config.configVersion} to ${deviceId} (retained)`);
+  }
+
+  return { router, onResult, push };
 }

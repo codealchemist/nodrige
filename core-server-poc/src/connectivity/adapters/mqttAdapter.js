@@ -6,13 +6,14 @@ import mqtt from "mqtt";
 // has nowhere for its messages to land. Wired up: `messages` (inbound
 // telemetry), `cmd` (outbound commands), `config` (outbound, retained config
 // pushes) and `cmd/result` (inbound results, e.g. config apply outcomes).
-// `status` is part of the wire contract but not yet consumed by this POC.
-export function createMqttAdapter({ url, onInbound, onResult = () => {}, logger = console }) {
+// `status` (retained presence: online / last-will offline) feeds the device
+// registry for the web console.
+export function createMqttAdapter({ url, onInbound, onResult = () => {}, onStatus = () => {}, logger = console }) {
   const client = mqtt.connect(url, { reconnectPeriod: 2000 });
 
   client.on("connect", () => {
     logger.log(`[mqtt] connected to ${url}`);
-    client.subscribe(["devices/+/messages", "devices/+/cmd/result"], (err) => {
+    client.subscribe(["devices/+/messages", "devices/+/cmd/result", "devices/+/status"], (err) => {
       if (err) logger.error("[mqtt] subscribe failed", err);
     });
   });
@@ -25,6 +26,7 @@ export function createMqttAdapter({ url, onInbound, onResult = () => {}, logger 
     const msg = { clientId, topic, payload, receivedAt: new Date().toISOString() };
     if (kind === "messages") onInbound(msg);
     else if (kind === "cmd" && sub === "result") onResult(msg);
+    else if (kind === "status") onStatus(msg);
   });
 
   return {
