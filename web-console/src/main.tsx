@@ -88,7 +88,7 @@ function Shell() {
             <Route path="/devices/:id" element={<DevicePage />} />
             <Route path="/configs" element={<ConfigsPage />} />
             <Route path="/configs/:id" element={<ConfigEditPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/:section?" element={<SettingsPage />} />
             <Route path="/logs" element={<LogsPage />} />
           </Routes>
         </main>

@@ -72,6 +72,7 @@ export function buildConsoleRouter({ registry, library, publishConfig, dispatch,
   //   { action: "telemetry", seconds }   fast telemetry for a while
   //   { action: "log_stream", seconds, backlog }  stream the log (0 stops)
   //   { action: "shell", line }          run a shell line (output in the log)
+  //   { action: "reboot" }               restart the device
   router.post("/devices/:id/diag", async (req, res) => {
     const id = req.params.id;
     if (!registry.get(id)) return res.sendStatus(404);
@@ -85,8 +86,12 @@ export function buildConsoleRouter({ registry, library, publishConfig, dispatch,
       if (!l || l.length > 200) return res.status(400).json({ error: "line must be 1-200 characters" });
       cmd.line = l;
       logger.log(`[console] ${id} $ ${l}`);
+    } else if (action === "reboot") {
+      // Not queued for later: a restart that lands hours after the click would surprise.
+      if (registry.get(id)?.status?.state !== "online") return res.status(409).json({ error: "the device is offline" });
+      logger.log(`[console] ${id}: restart requested`);
     } else {
-      return res.status(400).json({ error: "action must be telemetry, log_stream or shell" });
+      return res.status(400).json({ error: "action must be telemetry, log_stream, shell or reboot" });
     }
     try {
       await dispatch(cmd);
@@ -160,7 +165,7 @@ export function buildConsoleRouter({ registry, library, publishConfig, dispatch,
       icons: (manifest?.icons ?? []).map((i) => ({ id: i.id, size: i.size ?? manifest.sourceExportSize, url: `/catalog/icons/${i.id}.png` })),
       actions: ACTIONS,
       scenes,
-      tasks: ["player-volume", "core-info", "switch-state", "spotify-liked", "spotify-like", "spotify-skip-drop"],
+      tasks: ["player-volume", "core-info", "switch-state", "spotify-liked", "spotify-like", "spotify-skip-drop", "spotify-player"],
       defaultConfig: readJson(path.join(FIRMWARE_DIR, "data/config/default_config.json")),
     });
   });

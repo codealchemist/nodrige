@@ -21,7 +21,7 @@
       "required": ["id", "type", "label"],
       "properties": {
         "id": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^[A-Za-z0-9_-]+$" },
-        "type": { "enum": ["task", "switch", "folder", "action"] },
+        "type": { "enum": ["task", "switch", "folder", "action", "player"] },
         "label": { "type": "string", "minLength": 1, "maxLength": 40 },
         "icon": { "type": "string" },
         "shortcut": {}
@@ -89,6 +89,24 @@
                   "reprovision", "restoreDefaultConfig", "showAbout", "volume", "phoneVolume",
                   "screenDim", "screenOff", "switchSync", "shortcut", "weather"
                 ]
+              },
+              "shortcut": false
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "player" } } },
+          "then": {
+            "required": ["player"],
+            "properties": {
+              "player": {
+                "type": "object",
+                "required": ["taskId"],
+                "properties": {
+                  "taskId": { "type": "string", "minLength": 1 },
+                  "qos": { "enum": [0, 1, 2] }
+                },
+                "additionalProperties": false
               },
               "shortcut": false
             }

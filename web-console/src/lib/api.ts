@@ -88,7 +88,7 @@ export interface ConfigMeta {
 
 export interface MenuNode {
   id: string;
-  type: "task" | "switch" | "folder" | "action";
+  type: "task" | "switch" | "folder" | "action" | "player";
   label: string;
   icon?: string;
   action?: string;
@@ -104,6 +104,7 @@ export interface MenuNode {
     default?: boolean;
     state?: { taskId: string } & Record<string, unknown>;
   };
+  player?: { taskId: string; qos?: number };
   shortcut?: boolean | { off?: Record<string, unknown> };
 }
 

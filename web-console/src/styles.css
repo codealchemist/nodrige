@@ -313,7 +313,40 @@ textarea.small-json { min-height: 80px; }
 }
 
 /* --- Settings --- */
-.settings-list { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.settings-layout { display: grid; grid-template-columns: 240px minmax(0, 760px); gap: 20px; align-items: start; }
+.settings-menu { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 16px; }
+.settings-menu-head { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); padding: 4px 12px 8px; }
+.settings-menu a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--muted); text-decoration: none; border: 1px solid transparent; }
+.settings-menu a:hover { background: var(--panel-2); color: var(--text); }
+.settings-menu a.active { background: var(--panel); border-color: var(--line); color: var(--text); }
+.settings-menu .menu-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.settings-menu .menu-text strong { font-weight: 600; }
+.settings-menu .menu-text .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-menu .menu-chevron { display: none; color: var(--faint); }
+.menu-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--faint); }
+.menu-dot.on { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.menu-dot.info { background: var(--info); }
+.settings-back { display: none; }
+@media (min-width: 761px) and (max-width: 1080px) {
+  /* Mid-size: the menu becomes a row of tabs above the section. */
+  .settings-layout { grid-template-columns: minmax(0, 760px); gap: 14px; }
+  .settings-menu { position: static; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .settings-menu-head { display: none; }
+  .settings-menu a { padding: 8px 14px; }
+  .settings-menu .menu-text .small { display: none; }
+}
+@media (max-width: 760px) {
+  /* A phone shows the menu, then the picked section on its own screen. */
+  .settings-layout { grid-template-columns: 1fr; gap: 12px; }
+  .settings-menu { position: static; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 6px; }
+  .settings-menu a { padding: 14px 12px; }
+  .settings-menu a.active { background: transparent; border-color: transparent; color: var(--muted); }
+  .settings-menu .menu-chevron { display: block; }
+  .settings:not(.picked) .settings-detail { display: none; }
+  .settings.picked .settings-menu { display: none; }
+  .settings.picked .page-head p { display: none; }
+  .settings-back { display: inline-flex; }
+}
 .wrap-text { white-space: normal !important; }
 .state-pill.info { background: var(--info-soft); color: var(--info); }
 .integration .fields { display: flex; flex-direction: column; gap: 14px; }

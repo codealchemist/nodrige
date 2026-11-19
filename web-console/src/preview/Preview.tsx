@@ -63,7 +63,9 @@ export function Preview({
     if (!level.valid) setFolder([]);
   }, [level.valid]);
 
-  const pages = Math.max(1, Math.ceil(level.nodes.length / 2));
+  // Two items a page, except a player, which has a page of its own (as on the panel).
+  const spans = useMemo(() => pageSpans(level.nodes), [level.nodes]);
+  const pages = spans.length;
   useEffect(() => {
     if (page >= pages) setPage(pages - 1);
   }, [pages, page]);
@@ -77,7 +79,8 @@ export function Preview({
     const idx = selected[selected.length - 1];
     setActionPage(null);
     setFolder(parent);
-    setPage(Math.floor(idx / 2));
+    const sibs = (parent.length ? nodeAt(menu, parent)?.children : menu) ?? [];
+    setPage(pageOf(pageSpans(sibs), idx));
   }, [selected?.join(".")]);
 
   const slide = (dir: "left" | "right", fn: () => void) => {
@@ -90,8 +93,9 @@ export function Preview({
     if (!folder.length) return;
     const idx = folder[folder.length - 1];
     slide("right", () => {
-      setFolder(folder.slice(0, -1));
-      setPage(Math.floor(idx / 2));
+      const parent = folder.slice(0, -1);
+      setFolder(parent);
+      setPage(pageOf(pageSpans((parent.length ? nodeAt(menu, parent)?.children : menu) ?? []), idx));
     });
   };
   // Pages wrap like the firmware's; a folder's first page has the way back
@@ -157,7 +161,7 @@ export function Preview({
       flash(n.id, "busy", 600);
       const scene = n.task?.payload?.tuyaScene as string | undefined;
       if (scene) setTimeout(() => setActiveScene(scene.toLowerCase()), 600);
-    } else {
+    } else if (n.type === "action") {
       setActionPage(n);
     }
   };
@@ -176,9 +180,15 @@ export function Preview({
     { off: 0, p: page },
     ...(hasNext ? [{ off: 1, p: (page + 1) % pages }] : []),
   ];
-  const renderPage = (p: number) =>
-    level.nodes.slice(p * 2, p * 2 + 2).map((n, c) => {
-      const idx = p * 2 + c;
+  const renderPage = (p: number) => {
+    const sp = spans[p] ?? { start: 0, count: 0 };
+    const first = level.nodes[sp.start];
+    if (sp.count === 1 && first?.type === "player") {
+      const path = [...folder, sp.start].join(".");
+      return <PlayerPage key={path} node={first} selected={selKey === path} online={online} onTap={() => !swiped.current && tap(first, sp.start)} />;
+    }
+    return level.nodes.slice(sp.start, sp.start + sp.count).map((n, c) => {
+      const idx = sp.start + c;
       const path = [...folder, idx].join(".");
       return (
         <Tile
@@ -194,6 +204,7 @@ export function Preview({
         />
       );
     });
+  };
 
   return (
     <div className="preview-wrap" ref={wrapRef}>
@@ -317,6 +328,42 @@ function Tile(props: {
         </span>
       )}
       {badge && <span className={`badge-dot ${badge}`}>{badge === "ok" ? "✓" : ""}</span>}
+    </div>
+  );
+}
+
+export function pageSpans(nodes: MenuNode[]) {
+  const out: { start: number; count: number }[] = [];
+  for (let i = 0; i < nodes.length; ) {
+    const c = nodes[i].type !== "player" && i + 1 < nodes.length && nodes[i + 1].type !== "player" ? 2 : 1;
+    out.push({ start: i, count: c });
+    i += c;
+  }
+  return out.length ? out : [{ start: 0, count: 0 }];
+}
+
+export function pageOf(spans: { start: number; count: number }[], idx: number) {
+  const p = spans.findIndex((s) => idx < s.start + s.count);
+  return p < 0 ? 0 : p;
+}
+
+// A player page, as drawn by the panel (drawPlayer in menu.cpp), with sample
+// content: the preview isn't connected to the player.
+function PlayerPage({ node, selected, online, onTap }: { node: MenuNode; selected: boolean; online: boolean; onTap: () => void }) {
+  const fg = online ? "#fff" : L.greyDim;
+  const btns: [string, number, boolean][] = [["⏮", 84, false], ["▶", 104, true], ["⏭", 84, false]];
+  return (
+    <div className={`player ${selected ? "selected" : ""}`} onClick={onTap} title={`${node.label}: ${node.player?.taskId ?? "no task"}`}>
+      <div className="pl-song" style={{ color: fg }}>Song title</div>
+      <div className="pl-by">Artist  -  Device</div>
+      <div className="pl-time">1:12</div>
+      <div className="pl-bar"><span style={{ width: "35%" }} /></div>
+      <div className="pl-total">3:24</div>
+      <div className="pl-btns">
+        {btns.map(([t, w, main]) => (
+          <span key={t} className={main ? "main" : ""} style={{ width: w, color: fg }}>{t}</span>
+        ))}
+      </div>
     </div>
   );
 }

@@ -138,6 +138,7 @@ export function ConfigEditPage() {
                 <option value="switch">Switch</option>
                 <option value="folder">Folder</option>
                 <option value="action">Action</option>
+                <option value="player">Player (whole page)</option>
               </select>
               <button onClick={add}><Icon name="plus" size={16} /> Add</button>
             </div>

@@ -109,7 +109,7 @@ export function uniqueId(menu: MenuNode[], base: string, except?: string): strin
 
 // A new item of each type, ready to edit.
 export function newNode(menu: MenuNode[], type: MenuNode["type"]): MenuNode {
-  const label = { task: "New task", switch: "New switch", folder: "New folder", action: "About" }[type];
+  const label = { task: "New task", switch: "New switch", folder: "New folder", action: "About", player: "Player" }[type];
   const id = uniqueId(menu, slugId(label));
   switch (type) {
     case "task":
@@ -120,6 +120,8 @@ export function newNode(menu: MenuNode[], type: MenuNode["type"]): MenuNode {
       return { id, type, label, children: [] };
     case "action":
       return { id, type, label, action: "showAbout" };
+    case "player":
+      return { id, type, label, player: { taskId: "spotify-player" } };
   }
 }
 

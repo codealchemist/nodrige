@@ -35,7 +35,7 @@ export function Properties({ node, catalog, onChange, uniqueId }: Props) {
         <input value={node.id} onChange={(e) => set({ id: e.target.value.replace(/[^A-Za-z0-9_-]/g, "") })} />
       </label>
 
-      <IconPicker value={node.icon} node={node} icons={catalog?.icons ?? []} onChange={(icon) => set({ icon })} />
+      {node.type !== "player" && <IconPicker value={node.icon} node={node} icons={catalog?.icons ?? []} onChange={(icon) => set({ icon })} />}
 
       {node.type === "task" && <TaskFields node={node} scenes={scenes} onChange={onChange} />}
       {node.type === "switch" && <SwitchFields node={node} scenes={scenes} onChange={onChange} />}
@@ -50,6 +50,12 @@ export function Properties({ node, catalog, onChange, uniqueId }: Props) {
             }}
           />
           Messages inbox (filled by the panel, no items of its own)
+        </label>
+      )}
+      {node.type === "player" && (
+        <label>
+          <span className="field-label">Player task <span className="hint">gets {"{ cmd }"} and replies with what's playing</span></span>
+          <input list="task-ids" value={node.player?.taskId ?? ""} onChange={(e) => set({ player: { ...node.player, taskId: e.target.value } })} />
         </label>
       )}
       {node.type === "action" && (

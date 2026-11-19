@@ -10,6 +10,12 @@
 //                           playlists, remove it from that playlist. The Web
 //                           API can't remove songs from the play queue
 //                           itself, so this is the nearest equivalent.
+//   "spotify-player"     -> the panel's player page. payload.cmd: "state"
+//                           (default), "toggle", "play", "pause", "next",
+//                           "prev", "vol_up", "vol_down". Every reply carries
+//                           the player state after the command: playing,
+//                           song, by, device, progress/duration (ms), volume
+//                           (null when the device can't set it).
 //
 // HTTP (console):
 //   GET  /spotify/callback     Spotify's redirect after sign-in (no token)
@@ -20,7 +26,10 @@
 // Text sent to the panel is ASCII only: its fonts have no accented letters.
 import express from "express";
 import { authorizeUrl, completeAuth, disconnect, redirectUri, spotifyConfigured, spotifyConnected, spotifyUser } from "./auth.js";
-import { isSaved, me, nowPlaying, playlistInfo, removeFromPlaylist, setSaved, skipNext, SpotifyError } from "./api.js";
+import {
+  isSaved, me, nowPlaying, pause, play, playerState, playlistInfo, removeFromPlaylist, setSaved, setVolume, skipNext,
+  skipPrevious, SpotifyError,
+} from "./api.js";
 
 const ascii = (s, max = 60) =>
   String(s ?? "")
@@ -36,6 +45,7 @@ const songLabel = (np) => ascii(np.name, 40);
 function failure(err) {
   if (!spotifyConfigured()) return { status: "error", message: "Spotify not set up" };
   if (!spotifyConnected()) return { status: "error", message: "Spotify not connected" };
+  if (err instanceof SpotifyError && err.status === 404) return { status: "error", message: "No active Spotify device" };
   if (err instanceof SpotifyError && err.status === 403) {
     return { status: "error", message: /premium/i.test(err.message) ? "Needs Spotify Premium" : "Spotify refused it" };
   }
@@ -50,7 +60,66 @@ async function likeable() {
   return { np };
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// The panel's player state: short, ASCII, with what it needs to draw.
+function playerReply(st, message) {
+  if (!st) return { status: "ok", active: false, message: message ?? "Nothing playing" };
+  return {
+    status: "ok",
+    active: true,
+    playing: st.playing,
+    song: ascii(st.name, 48),
+    by: ascii(st.by, 48),
+    device: ascii(st.device, 24),
+    progress: st.progressMs,
+    duration: st.durationMs,
+    volume: st.volume,
+    message: message ?? `${st.playing ? "Playing" : "Paused"}: ${ascii(st.name, 40)}`,
+  };
+}
+
+const PLAYER_CMDS = {
+  async toggle(st) {
+    if (!st) throw new SpotifyError(404, "No active device");
+    await (st.playing ? pause() : play());
+    return { playing: !st.playing };
+  },
+  async play() { await play(); return { playing: true }; },
+  async pause() { await pause(); return { playing: false }; },
+  async next() { await skipNext(); return { reread: 700 }; },
+  async prev() { await skipPrevious(); return { reread: 700 }; },
+  async vol_up(st) { return volumeBy(st, 10); },
+  async vol_down(st) { return volumeBy(st, -10); },
+};
+
+async function volumeBy(st, d) {
+  if (!st) throw new SpotifyError(404, "No active device");
+  if (st.volume === null) return { message: `${ascii(st.device, 24) || "This device"} has no volume control` };
+  const v = Math.max(0, Math.min(100, Math.round((st.volume + d) / 10) * 10));
+  await setVolume(v);
+  return { volume: v, message: `Volume ${v}%` };
+}
+
 const handlers = {
+  async "spotify-player"(p) {
+    const cmd = String(p.cmd ?? "state");
+    const st = await playerState();
+    if (cmd === "state") return playerReply(st);
+    const run = PLAYER_CMDS[cmd];
+    if (!run) return { status: "error", message: `Unknown player command ${ascii(cmd, 20)}` };
+    const out = await run(st);
+    // Spotify's state lags a command a little: after a skip, read it again;
+    // otherwise patch what the command changed into the state just read.
+    if (out.reread) {
+      await sleep(out.reread);
+      return playerReply(await playerState());
+    }
+    const after = st ? { ...st, ...(out.playing !== undefined && { playing: out.playing }), ...(out.volume !== undefined && { volume: out.volume }) } : st;
+    return playerReply(after, out.message);
+  },
+
+
   async "spotify-liked"() {
     const { np, error } = await likeable();
     if (error) return error;
@@ -115,7 +184,9 @@ export default {
     } catch (err) {
       result = failure(err);
     }
-    ctx.logger.log(`[spotify] ${event.clientId} "${taskId}": ${result.message}`);
+    // The player page reads its state every 5 s: only commands and failures are logged.
+    const poll = taskId === "spotify-player" && (payload.cmd ?? "state") === "state" && result.status === "ok";
+    if (!poll) ctx.logger.log(`[spotify] ${event.clientId} "${taskId}"${payload.cmd ? ` ${payload.cmd}` : ""}: ${result.message}`);
     if (!expectsResult) return;
     await ctx.commands.dispatch({
       clientId: event.clientId,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type ConfigMeta, type Device } from "../lib/api";
@@ -30,6 +30,21 @@ export function DevicePage() {
       qc.invalidateQueries({ queryKey: ["devices"] });
     },
   });
+
+  // Restart: asks first; the button stays busy until the panel is back (or 60 s).
+  const [restarting, setRestarting] = useState<number | null>(null);
+  const restart = useMutation({
+    mutationFn: () => api(`/devices/${id}/diag`, { method: "POST", body: JSON.stringify({ action: "reboot" }) }),
+    onMutate: () => setRestarting(Date.now()),
+    onError: () => setRestarting(null),
+  });
+  const backOnline = restarting !== null && st?.state === "online" && st.at && Date.parse(st.at) > restarting + 2000;
+  useEffect(() => {
+    if (backOnline) setRestarting(null);
+    if (restarting === null) return;
+    const t = setTimeout(() => setRestarting(null), 60_000);
+    return () => clearTimeout(t);
+  }, [backOnline, restarting]);
 
   if (devices.isLoading) return <p className="muted">Loading…</p>;
   if (!d) return <p className="error">Unknown device {id}</p>;
@@ -63,10 +78,19 @@ export function DevicePage() {
         </div>
         <div className="page-actions">
           <Link to={`/logs?source=${encodeURIComponent(d.id)}`} className="button secondary-link"><Icon name="terminal" size={16} /> Logs</Link>
+          <button
+            className="secondary"
+            disabled={st?.state !== "online" || restarting !== null}
+            onClick={() => confirm(`Restart ${d.name}? It's back in about 10 seconds.`) && restart.mutate()}
+            title={st?.state !== "online" ? "The panel is offline" : "Restart the panel"}
+          >
+            <Icon name="restart" size={16} /> {restarting !== null ? "Restarting…" : "Restart"}
+          </button>
           <StatePill state={st?.state} />
         </div>
       </header>
 
+      {restart.error && <p className="error small">Restart not sent: {String((restart.error as Error).message)}</p>}
       <div className="cards">
         <Health deviceId={id} telemetry={live.telemetry[id] ?? d.telemetry} online={st?.state === "online"} />
 

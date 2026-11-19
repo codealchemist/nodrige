@@ -2,10 +2,10 @@
 // saved on the Core (data/integrations.json) and applied without a restart.
 // Secrets are write-only: the Core says whether one is set, never what it is.
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, NavLink, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHead } from "../components/icons";
+import { Icon, PageHead } from "../components/icons";
 
 type Field = {
   key: string;
@@ -35,16 +35,38 @@ type Integration = {
   };
 };
 
+// One integration at a time: a menu of sections on the left (on a phone,
+// its own screen), the selected one beside it at /settings/<id>.
 export function SettingsPage() {
+  const { section } = useParams();
   const list = useQuery({ queryKey: ["integrations"], queryFn: () => api<Integration[]>("/integrations") });
+  const current = list.data?.find((i) => i.id === section) ?? (section ? undefined : list.data?.[0]);
   return (
-    <section>
+    <section className={`settings ${section ? "picked" : ""}`}>
       <PageHead title="Settings" sub="Accounts and keys the Core uses for panel buttons. Saved on the Core; changes apply right away." />
       {list.isLoading && <p className="muted">Loading…</p>}
       {list.error && <p className="error">{String(list.error)}</p>}
-      <div className="settings-list">
-        {list.data?.map((i) => <IntegrationCard key={i.id} integration={i} />)}
-      </div>
+      {list.data && (
+        <div className="settings-layout">
+          <nav className="settings-menu" aria-label="Settings sections">
+            <span className="settings-menu-head">Integrations</span>
+            {list.data.map((i) => (
+              <NavLink key={i.id} to={`/settings/${i.id}`} className={() => (current?.id === i.id ? "active" : "")}>
+                <span className={`menu-dot ${PILL[i.status.state]}`} />
+                <span className="menu-text">
+                  <strong>{i.label}</strong>
+                  <span className="small muted">{i.status.message}</span>
+                </span>
+                <Icon name="chevronRight" size={16} className="menu-chevron" />
+              </NavLink>
+            ))}
+          </nav>
+          <div className="settings-detail">
+            <Link to="/settings" className="back-link settings-back"><Icon name="chevronLeft" size={16} /> Settings</Link>
+            {current ? <IntegrationCard key={current.id} integration={current} /> : <p className="muted">No such section.</p>}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

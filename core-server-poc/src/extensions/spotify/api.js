@@ -79,3 +79,27 @@ export async function playlistInfo(id) {
 export async function removeFromPlaylist(id, uri) {
   await call("DELETE", `/playlists/${id}/items`, { body: { items: [{ uri }] } });
 }
+
+// --- Player (needs Premium for the controls; reading works on any account) ---
+
+// The whole playback state, or null when no device is active.
+export async function playerState() {
+  const s = await call("GET", "/me/player", { query: { additional_types: "episode" } });
+  if (!s?.device) return null;
+  const it = s.item;
+  return {
+    playing: Boolean(s.is_playing),
+    progressMs: s.progress_ms ?? 0,
+    durationMs: it?.duration_ms ?? 0,
+    name: it?.name ?? "",
+    by: !it ? "" : it.type === "episode" ? it.show?.name ?? "" : (it.artists ?? []).map((a) => a.name).join(", "),
+    device: s.device.name ?? "",
+    volume: s.device.supports_volume === false ? null : s.device.volume_percent ?? null,
+    shuffle: Boolean(s.shuffle_state),
+  };
+}
+
+export const play = () => call("PUT", "/me/player/play");
+export const pause = () => call("PUT", "/me/player/pause");
+export const skipPrevious = () => call("POST", "/me/player/previous");
+export const setVolume = (pct) => call("PUT", "/me/player/volume", { query: { volume_percent: String(pct) } });

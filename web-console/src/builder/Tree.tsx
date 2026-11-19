@@ -3,7 +3,7 @@ import { iconUrl } from "../lib/api";
 import { NodeGlyph } from "../preview/symbols";
 import type { Path } from "./menuTree";
 
-const TYPE_LABEL: Record<MenuNode["type"], string> = { task: "Task", switch: "Switch", folder: "Folder", action: "Action" };
+const TYPE_LABEL: Record<MenuNode["type"], string> = { task: "Task", switch: "Switch", folder: "Folder", action: "Action", player: "Player" };
 
 export function Tree({
   menu,
