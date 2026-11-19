@@ -18,6 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Router } from "express";
+import { coreLogSince } from "./coreLog.js";
 import { schema, validateConfig } from "../configs/validate.js";
 
 // The firmware repo holds the icon artwork and the default menu.
@@ -55,7 +56,7 @@ export function iconRouter() {
   return router;
 }
 
-export function buildConsoleRouter({ registry, library, publishConfig, sceneNames, consoleMqtt, logger = console }) {
+export function buildConsoleRouter({ registry, library, publishConfig, dispatch, sceneNames, consoleMqtt, logger = console }) {
   const router = Router();
 
   router.get("/console/session", (req, res) => res.json({ mqtt: consoleMqtt }));
@@ -66,6 +67,37 @@ export function buildConsoleRouter({ registry, library, publishConfig, sceneName
     const d = registry.rename(req.params.id, req.body?.name ?? "");
     return d ? res.json(d) : res.sendStatus(404);
   });
+
+  // Diagnostics, sent on to the device as a command:
+  //   { action: "telemetry", seconds }   fast telemetry for a while
+  //   { action: "log_stream", seconds, backlog }  stream the log (0 stops)
+  //   { action: "shell", line }          run a shell line (output in the log)
+  router.post("/devices/:id/diag", async (req, res) => {
+    const id = req.params.id;
+    if (!registry.get(id)) return res.sendStatus(404);
+    const { action, seconds, backlog, line } = req.body ?? {};
+    const cmd = { clientId: id, componentId: "diag", action };
+    if (action === "telemetry" || action === "log_stream") {
+      cmd.seconds = Math.max(0, Math.min(600, Number(seconds ?? 120) | 0));
+      if (backlog) cmd.backlog = true;
+    } else if (action === "shell") {
+      const l = String(line ?? "").replace(/[\r\n]/g, " ").trim();
+      if (!l || l.length > 200) return res.status(400).json({ error: "line must be 1-200 characters" });
+      cmd.line = l;
+      logger.log(`[console] ${id} $ ${l}`);
+    } else {
+      return res.status(400).json({ error: "action must be telemetry, log_stream or shell" });
+    }
+    try {
+      await dispatch(cmd);
+      res.status(202).json({ sent: true });
+    } catch (err) {
+      res.status(502).json({ error: `not sent: ${err.message}` });
+    }
+  });
+
+  // The Core's own log, for the Logs page.
+  router.get("/logs/core", (req, res) => res.json(coreLogSince(Number(req.query.after) || 0)));
 
   // --- Config library ---
   router.get("/configs", (req, res) => res.json(library.list()));
@@ -128,7 +160,7 @@ export function buildConsoleRouter({ registry, library, publishConfig, sceneName
       icons: (manifest?.icons ?? []).map((i) => ({ id: i.id, size: i.size ?? manifest.sourceExportSize, url: `/catalog/icons/${i.id}.png` })),
       actions: ACTIONS,
       scenes,
-      tasks: ["player-volume", "core-info", "switch-state"],
+      tasks: ["player-volume", "core-info", "switch-state", "spotify-liked", "spotify-like", "spotify-skip-drop"],
       defaultConfig: readJson(path.join(FIRMWARE_DIR, "data/config/default_config.json")),
     });
   });

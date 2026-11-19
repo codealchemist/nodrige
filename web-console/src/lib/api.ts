@@ -43,6 +43,19 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // --- Types shared with the Core ---
 
+export type Telemetry = {
+  up: number;              // seconds
+  cpu?: number;            // %
+  heap: { free: number; min: number; size: number; largest: number };  // bytes
+  mhz?: number;
+  rssi?: number;           // dBm
+  batt?: number;           // mV (absent: no battery)
+  temp?: number;           // chip, C
+  tasks?: number;
+  screen?: string;
+  at: string;
+};
+
 export interface DeviceStatus {
   state: "online" | "offline";
   ip?: string;
@@ -61,6 +74,7 @@ export interface Device {
   lastConfigResult?: { status: string; configVersion: number; errors: string[]; at: string };
   // libraryVersion: the library entry's version this delivery carried.
   sentConfig?: { libraryId: string; libraryVersion?: number; configVersion: number; at: string };
+  telemetry?: Telemetry;   // latest the Core has seen
 }
 
 export interface ConfigMeta {
@@ -88,6 +102,7 @@ export interface MenuNode {
     qos?: number;
     expectsResult?: boolean;
     default?: boolean;
+    state?: { taskId: string } & Record<string, unknown>;
   };
   shortcut?: boolean | { off?: Record<string, unknown> };
 }

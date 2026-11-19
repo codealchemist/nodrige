@@ -8,6 +8,8 @@ import { DevicesPage } from "./pages/Devices";
 import { DevicePage } from "./pages/Device";
 import { ConfigsPage } from "./pages/Configs";
 import { ConfigEditPage } from "./pages/ConfigEdit";
+import { SettingsPage } from "./pages/Settings";
+import { LogsPage } from "./pages/Logs";
 import { Icon } from "./components/icons";
 import "@fontsource/montserrat/600.css";
 import "@fontsource/montserrat/700.css";
@@ -71,6 +73,8 @@ function Shell() {
           <div className="brand"><img src={logo} alt="" />nodrige</div>
           <NavLink to="/devices"><Icon name="devices" /><span>Devices</span></NavLink>
           <NavLink to="/configs"><Icon name="configs" /><span>Configs</span></NavLink>
+          <NavLink to="/logs"><Icon name="terminal" /><span>Logs</span></NavLink>
+          <NavLink to="/settings"><Icon name="settings" /><span>Settings</span></NavLink>
           <div className="side-foot">
             <LiveBadge />
             <button className="link" onClick={signOut}><Icon name="signOut" size={16} /> Sign out</button>
@@ -84,6 +88,8 @@ function Shell() {
             <Route path="/devices/:id" element={<DevicePage />} />
             <Route path="/configs" element={<ConfigsPage />} />
             <Route path="/configs/:id" element={<ConfigEditPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/logs" element={<LogsPage />} />
           </Routes>
         </main>
       </div>

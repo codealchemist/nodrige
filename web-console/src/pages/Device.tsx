@@ -5,6 +5,7 @@ import { api, ApiError, type ConfigMeta, type Device } from "../lib/api";
 import { useLive } from "../lib/live";
 import { ago, ResultBadge, SentConfig, StatePill } from "../components/bits";
 import { Icon } from "../components/icons";
+import { Health } from "../components/Health";
 
 export function DevicePage() {
   const { id = "" } = useParams();
@@ -60,10 +61,15 @@ export function DevicePage() {
           )}
           {d.name !== d.id && <p className="sub mono">{d.id}</p>}
         </div>
-        <div className="page-actions"><StatePill state={st?.state} /></div>
+        <div className="page-actions">
+          <Link to={`/logs?source=${encodeURIComponent(d.id)}`} className="button secondary-link"><Icon name="terminal" size={16} /> Logs</Link>
+          <StatePill state={st?.state} />
+        </div>
       </header>
 
       <div className="cards">
+        <Health deviceId={id} telemetry={live.telemetry[id] ?? d.telemetry} online={st?.state === "online"} />
+
         <div className="card">
           <h2>Status</h2>
           <dl>

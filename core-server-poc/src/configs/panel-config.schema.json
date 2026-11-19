@@ -54,6 +54,11 @@
                   "payload": { "type": "object" },
                   "on": { "type": "object" },
                   "off": { "type": "object" },
+                  "state": {
+                    "type": "object",
+                    "required": ["taskId"],
+                    "description": "How the panel reads the real state: a task (payload) whose reply carries state on/off. Read on boot, on screen wake and when its page opens. Without it, switches with a tuyaScene 'on' are read from that scene's lights."
+                  },
                   "qos": { "enum": [0, 1, 2] },
                   "expectsResult": { "type": "boolean" },
                   "default": { "type": "boolean" }

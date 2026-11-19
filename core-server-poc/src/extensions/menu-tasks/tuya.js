@@ -30,6 +30,13 @@ const SCENE_CACHE_MS = 60_000;
 let ctx = null;
 let sceneCache = { at: 0, scenes: [] }; // [{ homeId, sceneId, name }]
 
+// Settings changed from the console: drop the client and cached scenes so
+// the next call uses the new id, secret or data center.
+export function resetTuya() {
+  ctx = null;
+  sceneCache = { at: 0, scenes: [] };
+}
+
 export function tuyaConfigured() {
   return Boolean(process.env.TUYA_ACCESS_ID && process.env.TUYA_ACCESS_SECRET);
 }

@@ -17,6 +17,7 @@ export function Properties({ node, catalog, onChange, uniqueId }: Props) {
 
   return (
     <div className="props">
+      <datalist id="task-ids">{(catalog?.tasks ?? []).map((t) => <option key={t} value={t} />)}</datalist>
       <label>
         <span className="field-label">Label</span>
         <input
@@ -152,7 +153,7 @@ function TaskFields({ node, scenes, onChange }: { node: MenuNode; scenes: string
       <h3>Task</h3>
       <label>
         <span className="field-label">Task ID <span className="hint">which Core handler runs it</span></span>
-        <input value={String(payload.taskId ?? "")} onChange={(e) => setPayload({ taskId: e.target.value || undefined })} />
+        <input list="task-ids" value={String(payload.taskId ?? "")} onChange={(e) => setPayload({ taskId: e.target.value || undefined })} />
       </label>
       <label>
         <span className="field-label">Tuya scene <span className="hint">run a Smart Life scene</span></span>
@@ -196,7 +197,16 @@ function SwitchFields({ node, scenes, onChange }: { node: MenuNode; scenes: stri
       <h3>Switch</h3>
       <label>
         <span className="field-label">Task ID</span>
-        <input value={String(sw.payload?.taskId ?? "")} onChange={(e) => setSw({ payload: { ...sw.payload, taskId: e.target.value } })} />
+        <input list="task-ids" value={String(sw.payload?.taskId ?? "")} onChange={(e) => setSw({ payload: { ...sw.payload, taskId: e.target.value } })} />
+      </label>
+      <label>
+        <span className="field-label">Read state with <span className="hint">task whose reply says on or off; read on boot, wake and when its page opens</span></span>
+        <input
+          list="task-ids"
+          placeholder={sw.on?.tuyaScene ? "From the On scene's lights" : "Not read"}
+          value={String(sw.state?.taskId ?? "")}
+          onChange={(e) => setSw({ state: e.target.value ? { ...sw.state, taskId: e.target.value } : undefined })}
+        />
       </label>
       <label>
         <span className="field-label">"On" scene</span>

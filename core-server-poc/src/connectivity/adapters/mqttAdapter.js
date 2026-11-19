@@ -7,13 +7,14 @@ import mqtt from "mqtt";
 // telemetry), `cmd` (outbound commands), `config` (outbound, retained config
 // pushes) and `cmd/result` (inbound results, e.g. config apply outcomes).
 // `status` (retained presence: online / last-will offline) feeds the device
-// registry for the web console.
-export function createMqttAdapter({ url, onInbound, onResult = () => {}, onStatus = () => {}, logger = console }) {
+// registry for the web console, and `telemetry` (CPU, memory, uptime...)
+// keeps each device's latest reading for it.
+export function createMqttAdapter({ url, onInbound, onResult = () => {}, onStatus = () => {}, onTelemetry = () => {}, logger = console }) {
   const client = mqtt.connect(url, { reconnectPeriod: 2000 });
 
   client.on("connect", () => {
     logger.log(`[mqtt] connected to ${url}`);
-    client.subscribe(["devices/+/messages", "devices/+/cmd/result", "devices/+/status"], (err) => {
+    client.subscribe(["devices/+/messages", "devices/+/cmd/result", "devices/+/status", "devices/+/telemetry"], (err) => {
       if (err) logger.error("[mqtt] subscribe failed", err);
     });
   });
@@ -27,6 +28,7 @@ export function createMqttAdapter({ url, onInbound, onResult = () => {}, onStatu
     if (kind === "messages") onInbound(msg);
     else if (kind === "cmd" && sub === "result") onResult(msg);
     else if (kind === "status") onStatus(msg);
+    else if (kind === "telemetry") onTelemetry(msg);
   });
 
   return {

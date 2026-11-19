@@ -1,4 +1,7 @@
 import 'dotenv/config'
+import { installCoreLog } from './console/coreLog.js'
+import { loadIntegrationSettings } from './settings/integrations.js'
+import { buildIntegrationsRouter } from './settings/routes.js'
 import express from 'express'
 import https from 'node:https'
 import fs from 'node:fs'
@@ -11,6 +14,7 @@ import { loadExtension } from './extensions/loader.js'
 import echoExtension from './extensions/echo/index.js'
 import menuTasksExtension from './extensions/menu-tasks/index.js'
 import weatherExtension from './extensions/weather/index.js'
+import spotifyExtension, { spotifyPublicRouter, spotifyRouter } from './extensions/spotify/index.js'
 import { createProvisioningOrchestrator } from './provisioning/orchestrator.js'
 import { bleWifiStrategy } from './provisioning/strategies/bleWifi.js'
 import { bleGatewayStrategy } from './provisioning/strategies/bleGateway.js'
@@ -22,6 +26,13 @@ import { createConfigLibrary } from './configs/library.js'
 import { buildConsoleRouter, iconRouter } from './console/routes.js'
 import { attachMqttBridge } from './console/mqttBridge.js'
 import { tuyaSceneNames } from './extensions/menu-tasks/tuya.js'
+
+// Keep the Core's log for the console's Logs page (still printed as before).
+installCoreLog()
+
+// Integration ids and secrets saved from the console override .env.
+const savedSettings = loadIntegrationSettings()
+if (savedSettings) console.log(`[core] ${savedSettings} integration setting(s) from the console`)
 
 const app = express()
 app.use(express.json())
@@ -47,6 +58,7 @@ app.use('/console', express.static(path.resolve('../web-console/dist')))
 app.get('/console/*', (req, res, next) =>
   req.path.startsWith('/console/session') ? next() : res.sendFile(path.resolve('../web-console/dist/index.html'), err => err && next()))
 app.use(iconRouter())
+app.use(spotifyPublicRouter())  // Spotify's sign-in redirect lands here
 
 app.use(requireAuth)
 
@@ -61,7 +73,8 @@ const mqttAdapter = createMqttAdapter({
     broker.onDeviceMessage(msg)
   },
   onResult: msg => deviceConfig.onResult(msg),
-  onStatus: msg => registry.onStatus(msg.clientId, msg.payload)
+  onStatus: msg => registry.onStatus(msg.clientId, msg.payload),
+  onTelemetry: msg => registry.onTelemetry(msg.clientId, msg.payload)
 })
 broker = wireBroker(mqttAdapter)
 deviceConfig = buildDeviceConfigRouter(mqttAdapter, console, (id, body) => registry.onConfigResult(id, body))
@@ -78,6 +91,9 @@ loadExtension(echoExtension, extensionCtx)
 // Demo backend for the device menu's tasks (esp32-c6-control ARCHITECTURE.md §6.3).
 loadExtension(menuTasksExtension, extensionCtx)
 loadExtension(weatherExtension, extensionCtx)
+loadExtension(spotifyExtension, extensionCtx)
+app.use(spotifyRouter())
+app.use(buildIntegrationsRouter())
 
 // --- Device Setup & Provisioning Orchestrator (ch.4) ---
 // ctx mirrors what extensions get (ch.7 §7.4) — self-driving strategies like
@@ -109,6 +125,7 @@ app.use(buildConsoleRouter({
   registry,
   library,
   publishConfig: (id, doc) => deviceConfig.push(id, doc),
+  dispatch: cmd => broker.dispatchCommand(cmd),
   sceneNames: tuyaSceneNames,
   consoleMqtt: { path: '/mqtt', username: 'console', password: process.env.CONSOLE_MQTT_PASSWORD || 'console-dev' }
 }))

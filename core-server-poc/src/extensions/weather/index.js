@@ -25,6 +25,7 @@ let forecast = null;
 let alerts = [];
 const panels = new Set();
 let timers = [];
+let extCtx = null;
 
 const ascii = (s, max = 200) =>
   String(s ?? "")
@@ -100,7 +101,16 @@ async function refreshAlerts(ctx, { push = true } = {}) {
   }
 }
 
-export default {
+// Settings changed from the console (address, or the Tuya account the home
+// location comes from): resolve the location again and refetch.
+export async function reloadWeather() {
+  if (!extCtx) return null;
+  await weather.onEnable(extCtx);
+  return location;
+}
+export const weatherLocation = () => location;
+
+const weather = {
   manifest: {
     id: "weather",
     version: "0.1.0",
@@ -110,6 +120,11 @@ export default {
   },
 
   async onEnable(ctx) {
+    extCtx = ctx;
+    timers.forEach(clearInterval);
+    timers = [];
+    location = null;
+    forecast = null;
     try {
       location = await resolveLocation(ctx.logger);
       ctx.logger.log(`[weather] location from ${location.source}: ${location.name} (${location.lat}, ${location.lon})`);
@@ -158,3 +173,5 @@ export default {
     });
   },
 };
+
+export default weather;

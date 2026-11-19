@@ -15,6 +15,8 @@ export function createDeviceRegistry(logger = console) {
   } catch {
     devices = {};
   }
+  // Latest telemetry per device: memory only, it's stale after a restart.
+  const telemetry = {};
   let saveTimer = null;
   const save = () => {
     clearTimeout(saveTimer);
@@ -32,8 +34,18 @@ export function createDeviceRegistry(logger = console) {
   }
 
   return {
-    list: () => Object.values(devices).sort((a, b) => (b.lastSeen ?? "").localeCompare(a.lastSeen ?? "")),
+    list: () =>
+      Object.values(devices)
+        .sort((a, b) => (b.lastSeen ?? "").localeCompare(a.lastSeen ?? ""))
+        .map((d) => (telemetry[d.id] ? { ...d, telemetry: telemetry[d.id] } : d)),
     get: (id) => devices[id] ?? null,
+
+    // devices/<id>/telemetry: { up, cpu, heap: {...}, rssi, batt, temp, ... }
+    onTelemetry(id, payload) {
+      try {
+        telemetry[id] = { ...JSON.parse(payload.toString()), at: new Date().toISOString() };
+      } catch {}
+    },
 
     // devices/<id>/status: {"state":"online"|"offline", ip, fw, configVersion}
     onStatus(id, payload) {
