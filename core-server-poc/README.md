@@ -11,7 +11,8 @@ Walking-skeleton implementation of the architecture described in [`docs/00-poc-i
 
 ```bash
 npm install
-cp .env.example .env   # adjust DEV_BEARER_TOKEN / MQTT_URL if needed
+cp .env.example .env   # then set DEV_BEARER_TOKEN to a long random value (openssl rand -hex 24)
+export TOKEN=...       # the same value, for the curl examples below
 npm start              # or: npm run dev  (auto-restarts src/ on file changes)
 ```
 
@@ -49,7 +50,7 @@ The wire-level BLE contract this step hands off to a companion app is defined in
 
 ```bash
 curl -X POST http://localhost:7000/provisioning/sessions \
-  -H "Authorization: Bearer poc-dev-token" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"strategyId":"ble-wifi"}'
 ```
 
@@ -88,7 +89,7 @@ Once the app's on-device polling reports `connected`, it confirms back to the Co
 ```bash
 SESSION_ID=<sessionId from above>
 curl -X POST http://localhost:7000/provisioning/sessions/$SESSION_ID/payload \
-  -H "Authorization: Bearer poc-dev-token" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"status":"connected"}'
 # -> { "status": "success", "deviceId": "esp32-panel-XXXXXXXX", "deviceCredential": "..." }
 ```
@@ -99,7 +100,7 @@ curl -X POST http://localhost:7000/provisioning/sessions/$SESSION_ID/payload \
 
 ```bash
 curl -X POST http://localhost:7000/provisioning/sessions \
-  -H "Authorization: Bearer poc-dev-token" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"strategyId":"ble-gateway"}'
 ```
 
@@ -109,11 +110,15 @@ Running the real agent requires actual BLE hardware. Without hardware, you can s
 
 ### 3. Simulate device telemetry (no hardware required)
 
-Publish to `devices/<deviceId>/messages` on the same broker — the `messages` topic from `mqttConfigPayload.topics` above — using any MQTT client, e.g. `mosquitto_pub`, or a two-line script with the [`mqtt`](https://www.npmjs.com/package/mqtt) npm package:
+Publish to `devices/<deviceId>/messages` on the same broker — the `messages` topic from `mqttConfigPayload.topics` above — using any MQTT client, e.g. `mosquitto_pub`, or a short script with the [`mqtt`](https://www.npmjs.com/package/mqtt) npm package. The broker refuses anonymous clients, so log in as the device, with the `clientId`, `username` and `password` from `mqttConfigPayload`:
 
 ```js
 import mqtt from 'mqtt'
-const client = mqtt.connect('mqtt://localhost:1883')
+const client = mqtt.connect('mqtt://localhost:1883', {
+  clientId: 'esp32-panel-XXXXXXXX',
+  username: 'esp32-panel-XXXXXXXX',
+  password: '<mqttConfigPayload.password>'
+})
 client.on('connect', () => {
   client.publish(
     'devices/esp32-panel-XXXXXXXX/messages',
@@ -129,7 +134,7 @@ client.on('connect', () => {
 ### 4. Confirm the loop closed
 
 ```bash
-curl http://localhost:7000/debug/state/esp32-panel-XXXXXXXX -H "Authorization: Bearer poc-dev-token"
+curl http://localhost:7000/debug/state/esp32-panel-XXXXXXXX -H "Authorization: Bearer $TOKEN"
 ```
 
 should show the stored `StateEntry`, and the server log should show:
@@ -151,6 +156,19 @@ Subscribing to `devices/esp32-panel-XXXXXXXX/cmd` on the broker (`mosquitto_sub`
 ```
 
 This is the full trace from the guide's [§0.7 acceptance checklist](../docs/00-poc-implementation-guide.md#07-end-to-end-acceptance-checklist): **BLE provisioning → MQTT connectivity → state engine → extension hook → command dispatch**, verified. Note: `cmd/result`, `config`, and `status` are part of the wire contract (protocol doc §5) but not yet consumed by this POC's broker — see `src/connectivity/adapters/mqttAdapter.js`.
+
+## MQTT Logins
+
+The dev broker (`scripts/dev-broker.js`) accepts no anonymous clients. Every client logs in and is limited to its own topics (`src/mqttAuth/credentials.js`):
+
+| Client | Username | Password | May use |
+|---|---|---|---|
+| Core | `core` | `CORE_MQTT_PASSWORD` (.env) | everything |
+| Web console (via `/mqtt`) | `console` | `CONSOLE_MQTT_PASSWORD` (.env) | read-only: status, telemetry, log, cmd/result |
+| BLE gateway | `GATEWAY_CLIENT_ID` | `GATEWAY_MQTT_PASSWORD` (.env, both sides) | its own `devices/<id>/…` |
+| Panels | device id (= client id) | minted at provisioning | their own `devices/<id>/…` |
+
+Device passwords are kept only as salted hashes in `data/mqtt-credentials.json` (git-ignored). A device registered before logins were checked is adopted on its first login: that password is stored and required from then on. To revoke a device, delete its entry there and reprovision it.
 
 ## Project Layout
 

@@ -10,7 +10,13 @@ import mqtt from "mqtt";
 // registry for the web console, and `telemetry` (CPU, memory, uptime...)
 // keeps each device's latest reading for it.
 export function createMqttAdapter({ url, onInbound, onResult = () => {}, onStatus = () => {}, onTelemetry = () => {}, logger = console }) {
-  const client = mqtt.connect(url, { reconnectPeriod: 2000 });
+  // The broker requires a login: the Core's is "core" / CORE_MQTT_PASSWORD.
+  const client = mqtt.connect(url, {
+    reconnectPeriod: 2000,
+    clientId: `core-${process.pid}`,
+    username: "core",
+    password: process.env.CORE_MQTT_PASSWORD,
+  });
 
   client.on("connect", () => {
     logger.log(`[mqtt] connected to ${url}`);

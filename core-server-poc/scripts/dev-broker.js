@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Aedes } from "aedes";
 import net from "node:net";
 
@@ -5,41 +6,41 @@ import net from "node:net";
 // Docker, etc.) required. Point MQTT_URL at a real broker for anything
 // beyond local dev; the Core never assumes this one is in use (ch.5).
 //
-// One login is special: `console` (password CONSOLE_MQTT_PASSWORD), used by
-// the web console through the Core's /mqtt WebSocket bridge. It may only
-// SUBSCRIBE, and only to what the console shows: device presence, telemetry,
-// logs and command results, plus the Core's own core/# topics. Everything
-// else (devices, the Core) is unrestricted, as before, in this dev broker.
+// Every client logs in (src/mqttAuth/credentials.js): the Core, the web
+// console (read-only, through the Core's /mqtt bridge), the BLE gateway and
+// each provisioned device, which may only use its own devices/<id>/ topics.
+// Anonymous clients and wrong passwords are refused.
+import { checkLogin, mayPublish, maySubscribe } from "../src/mqttAuth/credentials.js";
+
 const port = Number(process.env.MQTT_BROKER_PORT) || 1883;
-const CONSOLE_USER = "console";
-const CONSOLE_PASSWORD = process.env.CONSOLE_MQTT_PASSWORD || "console-dev";
-const CONSOLE_TOPICS = [
-  /^devices\/[^/#+]+\/(status|telemetry|log|cmd\/result)$/,
-  /^devices\/\+\/(status|telemetry|log|cmd\/result)$/,
-  /^core\/.*/,
-];
 
 const broker = await Aedes.createBroker({
   authenticate(client, username, password, done) {
-    if (username === CONSOLE_USER) {
-      const ok = String(password ?? "") === CONSOLE_PASSWORD;
-      if (ok) client.isConsole = true;
-      return done(null, ok);
+    const r = checkLogin(client?.id, username, password);
+    if (r.refused) {
+      console.warn(`[broker] refused ${client?.id ?? "?"}${username ? ` (user ${username})` : ""}: ${r.refused}`);
+      const err = new Error(r.refused);
+      err.returnCode = username ? 4 : 5;  // 4: bad user name or password, 5: not authorized
+      return done(err, false);
     }
+    client.who = r;
+    if (r.note) console.log(`[broker] ${r.id}: ${r.note}`);
     done(null, true);
   },
   authorizePublish(client, packet, done) {
-    if (client?.isConsole) return done(new Error("console is read-only"));
-    done(null);
+    // The last will is published on the client's behalf (client is then null
+    // in some aedes paths): it was checked when the client connected.
+    if (!client) return done(null);
+    if (mayPublish(client.who, packet.topic)) return done(null);
+    console.warn(`[broker] ${client.id} may not publish to ${packet.topic}`);
+    done(new Error("not authorized"));
   },
   authorizeSubscribe(client, sub, done) {
-    if (client?.isConsole && !CONSOLE_TOPICS.some((re) => re.test(sub.topic))) {
-      // Refuse just this subscription (SUBACK failure code); an error here
-      // would make aedes drop the whole connection.
-      console.warn(`[broker] console may not subscribe to ${sub.topic}`);
-      return done(null, null);
-    }
-    done(null, sub);
+    if (maySubscribe(client.who, sub.topic)) return done(null, sub);
+    // Refuse just this subscription (SUBACK failure code); an error here
+    // would make aedes drop the whole connection.
+    console.warn(`[broker] ${client.id} may not subscribe to ${sub.topic}`);
+    done(null, null);
   },
 });
 const server = net.createServer(broker.handle);

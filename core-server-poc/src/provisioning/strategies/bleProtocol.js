@@ -1,5 +1,6 @@
 import { randomUUID, randomBytes } from "node:crypto";
 import { lanAddresses } from "../../devCert.js";
+import { setDevicePassword } from "../../mqttAuth/credentials.js";
 
 // Shared wire-contract constants + identity/config minting for any BLE
 // provisioning strategy variant (app-driven ble-wifi.js, gateway-driven
@@ -69,6 +70,9 @@ export function mintDeviceIdentity() {
   const deviceId = `esp32-panel-${randomUUID().slice(0, 8)}`;
   const mqttPassword = randomBytes(16).toString("hex");
   const { brokerHost, brokerPort, useTls } = parseBrokerUrl(process.env.MQTT_URL);
+  // The broker checks this login; the device tests it before provisioning
+  // finishes, so it's recorded now (as a salted hash only).
+  setDevicePassword(deviceId, mqttPassword);
 
   return {
     deviceId,

@@ -6,7 +6,7 @@ import express from 'express'
 import https from 'node:https'
 import fs from 'node:fs'
 import { ensureDevCert, lanAddresses } from './devCert.js'
-import { requireAuth } from './identity/verifyToken.js'
+import { requireAuth, tokenProblem } from './identity/verifyToken.js'
 import { createMqttAdapter } from './connectivity/adapters/mqttAdapter.js'
 import { wireBroker } from './connectivity/broker.js'
 import { stateEngine } from './state/stateEngine.js'
@@ -29,6 +29,12 @@ import { tuyaSceneNames } from './extensions/menu-tasks/tuya.js'
 
 // Keep the Core's log for the console's Logs page (still printed as before).
 installCoreLog()
+if (tokenProblem()) {
+  console.error(`[core] ${tokenProblem()}: every API request will be refused. Set your own in .env, e.g. DEV_BEARER_TOKEN=$(openssl rand -hex 24)`)
+}
+for (const k of ['CORE_MQTT_PASSWORD', 'CONSOLE_MQTT_PASSWORD']) {
+  if (!process.env[k]) console.error(`[core] ${k} is not set in .env: the broker will refuse that login`)
+}
 
 // Integration ids and secrets saved from the console override .env.
 const savedSettings = loadIntegrationSettings()
@@ -127,7 +133,7 @@ app.use(buildConsoleRouter({
   publishConfig: (id, doc) => deviceConfig.push(id, doc),
   dispatch: cmd => broker.dispatchCommand(cmd),
   sceneNames: tuyaSceneNames,
-  consoleMqtt: { path: '/mqtt', username: 'console', password: process.env.CONSOLE_MQTT_PASSWORD || 'console-dev' }
+  consoleMqtt: { path: '/mqtt', username: 'console', password: process.env.CONSOLE_MQTT_PASSWORD }
 }))
 
 // --- Device config push (esp32-c6-control docs/ARCHITECTURE.md §5.3) ---
