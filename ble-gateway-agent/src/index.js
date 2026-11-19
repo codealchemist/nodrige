@@ -14,7 +14,14 @@ const qrInput = createQrInputServer({ port: QR_INPUT_PORT });
 // (docs/05-connectivity-broker.md) — same topic scheme as any device
 // (docs/PROVISIONING_PROTOCOL_V2.md §7's naming). No Core-side broker code
 // needed to support it; it's addressed and commanded exactly like a device.
-const client = mqtt.connect(MQTT_URL, { clientId: GATEWAY_CLIENT_ID, reconnectPeriod: 2000 });
+// The broker requires a login: GATEWAY_CLIENT_ID / GATEWAY_MQTT_PASSWORD
+// (the same password as in the Core's .env).
+const client = mqtt.connect(MQTT_URL, {
+  clientId: GATEWAY_CLIENT_ID,
+  username: GATEWAY_CLIENT_ID,
+  password: process.env.GATEWAY_MQTT_PASSWORD,
+  reconnectPeriod: 2000,
+});
 
 client.on("connect", () => {
   console.log(`[gateway] connected to ${MQTT_URL} as ${GATEWAY_CLIENT_ID}`);

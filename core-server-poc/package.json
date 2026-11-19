@@ -12,11 +12,17 @@
     "broker": "node scripts/dev-broker.js"
   },
   "dependencies": {
+    "@tuya/tuya-connector-nodejs": "^2.1.2",
+    "ajv": "^8.20.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "mqtt": "^5.10.1"
+    "mqtt": "^5.10.1",
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "aedes": "^1.1.1"
+  },
+  "overrides": {
+    "axios": "^1.21.1"
   }
 }

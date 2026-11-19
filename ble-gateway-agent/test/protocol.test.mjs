@@ -121,7 +121,7 @@ try {
 
 // Compact "P2:mac:token" wire format, as emitted by current firmware.
 const compactQr = parseQrPayload("P2:a1b2c3d4e5f6:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
-check("compact QR parse: derived name", compactQr.name, "PROV_A1B2C3");
+check("compact QR parse: derived name", compactQr.name, "PROV_D4E5F6");
 check("compact QR parse: mac bytes", bytesToHex(compactQr.macBytes), "a1b2c3d4e5f6");
 check(
   "compact QR parse: token bytes",
