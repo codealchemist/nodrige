@@ -1,6 +1,6 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getToken, setToken } from "./lib/api";
 import { LiveProvider, useLive } from "./lib/live";
@@ -64,13 +64,13 @@ function Shell() {
       <div className="shell">
         {/* Phones: top bar here, the nav below turns into a bottom tab bar. */}
         <header className="topbar">
-          <div className="brand"><img src={logo} alt="" />nodrige</div>
+          <Link to="/" className="brand" aria-label="nodrige home"><img src={logo} alt="" />nodrige</Link>
           <span className="grow" />
           <LiveBadge />
           <button className="icon-only" onClick={signOut} title="Sign out" aria-label="Sign out"><Icon name="signOut" /></button>
         </header>
         <nav className="side">
-          <div className="brand"><img src={logo} alt="" />nodrige</div>
+          <Link to="/" className="brand" aria-label="nodrige home"><img src={logo} alt="" />nodrige</Link>
           <NavLink to="/devices"><Icon name="devices" /><span>Devices</span></NavLink>
           <NavLink to="/configs"><Icon name="configs" /><span>Configs</span></NavLink>
           <NavLink to="/logs"><Icon name="terminal" /><span>Logs</span></NavLink>
